@@ -4,7 +4,7 @@
 !> Based on empirical data from Seed-2.0-mini experiments (May 2026).
 module amnesia_curve
   implicit none
-  integer, parameter :: dp = selected_real_kind(15, 307)
+  integer, parameter, private :: dp = selected_real_kind(15, 307)
 
   ! Experimental data points from baton protocol experiments
   integer, parameter :: N_DATA = 8

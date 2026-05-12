@@ -22,64 +22,70 @@ impl Default for SparseMemoryConfig {
     }
 }
 
+/// Simple LCG random number generator (avoids rand dependency).
+fn lcg_rand(seed: &mut u64) -> f64 {
+    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+    ((*seed >> 33) as f64) / (1u64 << 31) as f64
+}
+
 /// A sparse memory layer with UltraMem-inspired architecture.
 ///
-/// This is a pure Rust implementation that mirrors the Fortran sparse_memory
-/// module. The Fortran FFI is available for high-performance computation;
-/// this Rust implementation provides a safe, portable alternative.
+/// Pure Rust implementation that mirrors the Fortran sparse_memory module.
 #[derive(Debug)]
 pub struct SparseMemoryLayer {
     config: SparseMemoryConfig,
     values: Vec<Vec<Vec<f64>>>,     // (n_rows, n_cols, hidden_dim)
-    row_keys: Vec<Vec<f64>>,        // (n_ranks, n_rows)
-    col_keys: Vec<Vec<f64>>,        // (n_ranks, n_cols)
+    row_keys: Vec<Vec<f64>>,        // (n_ranks, hidden_dim)
+    row_embed: Vec<Vec<f64>>,       // (n_ranks, n_rows)
+    col_keys: Vec<Vec<f64>>,        // (n_ranks, hidden_dim)
+    col_embed: Vec<Vec<f64>>,       // (n_ranks, n_cols)
     tucker_core: Vec<Vec<f64>>,     // (n_ranks, n_ranks)
 }
 
 impl SparseMemoryLayer {
-    /// Create a new sparse memory layer with random initialization.
+    /// Create a new sparse memory layer with pseudo-random initialization.
     pub fn new(config: SparseMemoryConfig) -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut seed: u64 = 42;
         let scale = (2.0 / (config.n_ranks + config.hidden_dim) as f64).sqrt();
+
+        let init_vec = |len: usize, s: &mut u64| -> Vec<f64> {
+            (0..len).map(|_| (lcg_rand(s) - 0.5) * 2.0 * scale).collect()
+        };
 
         let values = (0..config.n_rows)
             .map(|_| (0..config.n_cols)
-                .map(|_| (0..config.hidden_dim)
-                    .map(|_| (rng.gen::<f64>() - 0.5) * 2.0 * scale)
-                    .collect())
+                .map(|_| init_vec(config.hidden_dim, &mut seed))
                 .collect())
             .collect();
 
         let row_keys = (0..config.n_ranks)
-            .map(|_| (0..config.n_rows)
-                .map(|_| (rng.gen::<f64>() - 0.5) * 2.0 * scale)
-                .collect())
+            .map(|_| init_vec(config.hidden_dim, &mut seed))
+            .collect();
+
+        let row_embed = (0..config.n_ranks)
+            .map(|_| init_vec(config.n_rows, &mut seed))
             .collect();
 
         let col_keys = (0..config.n_ranks)
-            .map(|_| (0..config.n_cols)
-                .map(|_| (rng.gen::<f64>() - 0.5) * 2.0 * scale)
-                .collect())
+            .map(|_| init_vec(config.hidden_dim, &mut seed))
+            .collect();
+
+        let col_embed = (0..config.n_ranks)
+            .map(|_| init_vec(config.n_cols, &mut seed))
             .collect();
 
         let tucker_core = (0..config.n_ranks)
-            .map(|_| (0..config.n_ranks)
-                .map(|_| (rng.gen::<f64>() - 0.5) * 2.0 * scale)
-                .collect())
+            .map(|_| init_vec(config.n_ranks, &mut seed))
             .collect();
 
-        Self { config, values, row_keys, col_keys, tucker_core }
+        Self { config, values, row_keys, row_embed, col_keys, col_embed, tucker_core }
     }
 
     /// Query the sparse memory layer.
-    ///
-    /// Returns a weighted sum of the top-k value vectors,
-    /// weighted by their Tucker-decomposed scores.
     pub fn query(&self, query_vec: &[f64]) -> Vec<f64> {
         assert_eq!(query_vec.len(), self.config.hidden_dim);
 
-        // Project query to rank space via row keys
+        // Step 1: Project query to rank space via row_keys
         let q_rank: Vec<f64> = (0..self.config.n_ranks)
             .map(|r| self.row_keys[r].iter()
                 .zip(query_vec.iter())
@@ -87,40 +93,43 @@ impl SparseMemoryLayer {
                 .sum())
             .collect();
 
-        // Apply Tucker core
+        // Step 2: Apply Tucker core
         let c_rank: Vec<f64> = (0..self.config.n_ranks)
             .map(|r| (0..self.config.n_ranks)
                 .map(|k| self.tucker_core[r][k] * q_rank[k])
                 .sum())
             .collect();
 
-        // Compute column scores
-        let col_scores: Vec<f64> = (0..self.config.n_cols)
-            .map(|c| self.col_keys.iter().zip(c_rank.iter())
-                .map(|(keys, cr)| keys[c] * cr)
+        // Step 3: Row scores
+        let row_proj: Vec<f64> = (0..self.config.n_rows)
+            .map(|r| self.row_embed.iter()
+                .zip(q_rank.iter())
+                .map(|(emb, qr)| emb[r] * qr)
                 .sum())
             .collect();
 
-        // Compute all scores and find top-k
+        // Step 4: Column scores
+        let col_proj: Vec<f64> = (0..self.config.n_cols)
+            .map(|c| self.col_embed.iter()
+                .zip(c_rank.iter())
+                .map(|(emb, cr)| emb[c] * cr)
+                .sum())
+            .collect();
+
+        // Step 5: Compute all scores and find top-k
         let mut scored: Vec<(usize, f64)> = Vec::new();
         for r in 0..self.config.n_rows {
-            let row_score: f64 = self.row_keys.iter()
-                .zip(query_vec.iter())
-                .map(|(keys, q)| keys[r] * q)
-                .sum();
             for c in 0..self.config.n_cols {
-                let score = row_score * col_scores[c];
+                let score = row_proj[r] * col_proj[c];
                 let idx = r * self.config.n_cols + c;
                 scored.push((idx, score));
             }
         }
 
-        // Sort by score descending
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         scored.truncate(self.config.top_k);
 
-        // Weighted sum
-        let total_score: f64 = scored.iter().map(|(_, s)| s.abs()).sum().max(1e-10);
+        let total_score: f64 = scored.iter().map(|(_, s)| s.abs()).sum::<f64>().max(1e-10);
         let mut output = vec![0.0; self.config.hidden_dim];
         for (idx, score) in &scored {
             let r = idx / self.config.n_cols;
@@ -164,7 +173,6 @@ mod tests {
         let query = vec![1.0, 0.5, -0.3, 0.7, -0.2, 0.4, 0.1, -0.6];
         let output = layer.query(&query);
         assert_eq!(output.len(), 8);
-        // Output should be non-zero (unless extremely unlucky with random init)
         let norm: f64 = output.iter().map(|x| x * x).sum::<f64>().sqrt();
         assert!(norm > 0.0, "Query output should be non-zero");
     }

@@ -6,7 +6,7 @@
 !> O(n_rows * n_cols).
 module tucker_decompose
   implicit none
-  integer, parameter :: dp = selected_real_kind(15, 307)
+  integer, parameter, private :: dp = selected_real_kind(15, 307)
 
 contains
 

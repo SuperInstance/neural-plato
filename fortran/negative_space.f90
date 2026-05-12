@@ -7,7 +7,7 @@
 !> building from what you have, you carve away what you know isn't there.
 module negative_space
   implicit none
-  integer, parameter :: dp = selected_real_kind(15, 307)
+  integer, parameter, private :: dp = selected_real_kind(15, 307)
 
 contains
 

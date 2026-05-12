@@ -107,14 +107,11 @@ pub fn predict_accuracy(coverage: f64) -> f64 {
 
     // Linear interpolation between data points
     for i in 0..7 {
-        if coverage >= accuracy_data[i + 1] && coverage <= coverage_data[i] {
-            // Wrong — we need to interpolate by coverage, not accuracy
-            if coverage <= coverage_data[i] && coverage >= coverage_data[i + 1] {
-                let span = coverage_data[i] - coverage_data[i + 1];
-                if span < 1e-12 { return accuracy_data[i]; }
-                let t = (coverage - coverage_data[i + 1]) / span;
-                return accuracy_data[i + 1] + t * (accuracy_data[i] - accuracy_data[i + 1]);
-            }
+        if coverage <= coverage_data[i] && coverage >= coverage_data[i + 1] {
+            let span = coverage_data[i] - coverage_data[i + 1];
+            if span < 1e-12 { return accuracy_data[i]; }
+            let t = (coverage - coverage_data[i + 1]) / span;
+            return accuracy_data[i + 1] + t * (accuracy_data[i] - accuracy_data[i + 1]);
         }
     }
 

@@ -5,6 +5,8 @@ edition = "2021"
 description = "Fortran + Rust hybrid implementing sparse memory, Tucker decomposition, Eisenstein snap, and forgetting curves"
 authors = ["Forgemaster ⚒️ <forgemaster@cocapn.fleet>"]
 
+[workspace]
+
 [lib]
 name = "neural_plato"
 crate-type = ["cdylib", "rlib"]

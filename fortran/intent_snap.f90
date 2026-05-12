@@ -1,7 +1,7 @@
 !> Vectorized Eisenstein lattice snap for constraint theory.
 module intent_snap
   implicit none
-  integer, parameter :: dp = selected_real_kind(15, 307)
+  integer, parameter, private :: dp = selected_real_kind(15, 307)
 
   ! The 12 Eisenstein integers (dodecet system)
   integer, parameter :: DODECET_Q(12) = [1, 2, 2, 1, -1, -2, -2, -1, 0, 1, 1, 0]

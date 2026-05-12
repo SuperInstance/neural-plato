@@ -1,12 +1,14 @@
 !> Sparse memory layer inspired by UltraMem (ICLR 2025, ByteDance Seed team).
 module sparse_memory
   implicit none
-  integer, parameter :: dp = selected_real_kind(15, 307)
+  integer, parameter, private :: dp = selected_real_kind(15, 307)
 
   type :: MemoryLayer
     real(dp), allocatable :: values(:,:,:)     ! (n_rows, n_cols, hidden_dim)
-    real(dp), allocatable :: row_keys(:,:)     ! (n_ranks, n_rows)
-    real(dp), allocatable :: col_keys(:,:)     ! (n_ranks, n_cols)
+    real(dp), allocatable :: row_keys(:,:)     ! (n_ranks, hidden_dim) - projection
+    real(dp), allocatable :: row_embed(:,:)    ! (n_ranks, n_rows) - row embeddings
+    real(dp), allocatable :: col_keys(:,:)     ! (n_ranks, hidden_dim) - projection
+    real(dp), allocatable :: col_embed(:,:)    ! (n_ranks, n_cols) - col embeddings
     real(dp), allocatable :: tucker_core(:,:)  ! (n_ranks, n_ranks)
     real(dp), allocatable :: linear_w(:,:)     ! (hidden_dim, 4) for IVE
     integer :: n_rows, n_cols, hidden_dim, n_ranks, top_k
@@ -27,8 +29,10 @@ contains
     layer%top_k = top_k
 
     allocate(layer%values(n_rows, n_cols, hidden_dim))
-    allocate(layer%row_keys(n_ranks, n_rows))
-    allocate(layer%col_keys(n_ranks, n_cols))
+    allocate(layer%row_keys(n_ranks, hidden_dim))
+    allocate(layer%row_embed(n_ranks, n_rows))
+    allocate(layer%col_keys(n_ranks, hidden_dim))
+    allocate(layer%col_embed(n_ranks, n_cols))
     allocate(layer%tucker_core(n_ranks, n_ranks))
     allocate(layer%linear_w(hidden_dim, 4))
 
@@ -40,8 +44,14 @@ contains
     call random_number(layer%row_keys)
     layer%row_keys = (layer%row_keys - 0.5_dp) * 2.0_dp * scale
 
+    call random_number(layer%row_embed)
+    layer%row_embed = (layer%row_embed - 0.5_dp) * 2.0_dp * scale
+
     call random_number(layer%col_keys)
     layer%col_keys = (layer%col_keys - 0.5_dp) * 2.0_dp * scale
+
+    call random_number(layer%col_embed)
+    layer%col_embed = (layer%col_embed - 0.5_dp) * 2.0_dp * scale
 
     call random_number(layer%tucker_core)
     layer%tucker_core = (layer%tucker_core - 0.5_dp) * 2.0_dp * scale
@@ -57,30 +67,21 @@ contains
     real(dp), intent(in)  :: query_vec(layer%hidden_dim, n_query)
     real(dp), intent(out) :: output_vec(layer%hidden_dim, n_query)
 
-    real(dp), allocatable :: scores(:,:), q_proj(:,:), core_out(:,:)
+    real(dp), allocatable :: scores(:,:)
     real(dp), allocatable :: top_scores(:)
     integer, allocatable  :: top_indices(:)
-    integer :: q, k, r, c, idx, total_cells
+    integer :: q, k, r, c, idx
     real(dp) :: total_score
 
-    total_cells = layer%n_rows * layer%n_cols
     allocate(scores(layer%n_rows, layer%n_cols))
-    allocate(q_proj(layer%n_ranks, n_query))
-    allocate(core_out(layer%n_ranks, n_query))
     allocate(top_indices(layer%top_k))
     allocate(top_scores(layer%top_k))
 
     output_vec = 0.0_dp
 
     do q = 1, n_query
-      ! Project query to rank space
-      q_proj(:,q) = matmul(layer%row_keys, query_vec(:,q))
-
-      ! Apply Tucker core
-      core_out(:,q) = matmul(layer%tucker_core, q_proj(:,q))
-
-      ! Compute full score matrix
-      call compute_all_scores(layer, query_vec(1,q), scores)
+      ! Compute full score matrix via TDQKR
+      call compute_all_scores(layer, query_vec(:,q), scores)
 
       ! Find top-k (flatten 2D -> 1D indices)
       call find_top_k_2d(scores, layer%n_rows, layer%n_cols, &
@@ -99,7 +100,7 @@ contains
       end do
     end do
 
-    deallocate(scores, q_proj, core_out, top_indices, top_scores)
+    deallocate(scores, top_indices, top_scores)
 
   end subroutine query
 
@@ -110,27 +111,30 @@ contains
     real(dp), intent(out) :: scores(n_scores)
 
     real(dp) :: q_rank(layer%n_ranks), c_rank(layer%n_ranks)
-    real(dp) :: col_proj(layer%n_cols)
+    real(dp) :: row_proj(layer%n_rows), col_proj(layer%n_cols)
     integer :: r, c, idx
 
-    ! Project to rank space
-    do r = 1, layer%n_ranks
-      q_rank(r) = dot_product(layer%row_keys(r, :), query_vec)
-    end do
+    ! Project query to rank space: q_rank = row_keys * query
+    q_rank = matmul(layer%row_keys, query_vec)
 
     ! Apply Tucker core
     c_rank = matmul(layer%tucker_core, q_rank)
 
-    ! Column projections
-    do c = 1, layer%n_cols
-      col_proj(c) = dot_product(layer%col_keys(:, c), c_rank)
+    ! Row scores: row_proj(r) = dot(row_embed(:,r), q_rank)
+    do r = 1, layer%n_rows
+      row_proj(r) = dot_product(layer%row_embed(:, r), q_rank)
     end do
 
-    ! Assemble flattened scores
+    ! Column scores: col_proj(c) = dot(col_embed(:,c), c_rank)
+    do c = 1, layer%n_cols
+      col_proj(c) = dot_product(layer%col_embed(:, c), c_rank)
+    end do
+
+    ! Assemble flattened scores as outer product
     idx = 1
     do r = 1, layer%n_rows
       do c = 1, layer%n_cols
-        scores(idx) = q_rank(min(r, layer%n_ranks)) * col_proj(c)
+        scores(idx) = row_proj(r) * col_proj(c)
         idx = idx + 1
       end do
     end do
@@ -174,12 +178,14 @@ contains
     ! Original values in first slot
     values_out(:, 1:n_h) = values_in
 
-    ! Expanded: linear projections (broadcast scalar weight across each row)
+    ! Expanded: scaled linear projections
     do e = 1, n_expand - 1
       block
+        real(dp) :: w_sum
         integer :: row_i
+        w_sum = sum(linear_weights(:, e)) / real(n_h, dp)
         do row_i = 1, n_v
-          values_out(row_i, e*n_h+1:(e+1)*n_h) = values_in(row_i, :) * sum(linear_weights(:, e)) / n_h
+          values_out(row_i, e*n_h+1:(e+1)*n_h) = values_in(row_i, :) * w_sum
         end do
       end block
     end do
@@ -194,29 +200,28 @@ contains
     real(dp), intent(out) :: scores(layer%n_rows, layer%n_cols)
 
     real(dp) :: q_rank(layer%n_ranks), c_rank(layer%n_ranks)
-    real(dp) :: col_proj(layer%n_cols)
-    real(dp) :: row_proj(layer%n_rows)
+    real(dp) :: row_proj(layer%n_rows), col_proj(layer%n_cols)
     integer :: r, c
 
-    ! Project query to rank space
-    do r = 1, layer%n_ranks
-      q_rank(r) = dot_product(layer%row_keys(r, :), query_vec)
-    end do
+    ! Step 1: Project query to rank space via row_keys
+    ! q_rank = row_keys * query  [n_ranks x 1]
+    q_rank = matmul(layer%row_keys, query_vec)
 
-    ! Tucker core
+    ! Step 2: Apply Tucker core decomposition
+    ! c_rank = tucker_core * q_rank  [n_ranks x 1]
     c_rank = matmul(layer%tucker_core, q_rank)
 
-    ! Column projections
-    do c = 1, layer%n_cols
-      col_proj(c) = dot_product(layer%col_keys(:, c), c_rank)
-    end do
-
-    ! Row projections (map query to row space)
+    ! Step 3: Compute row scores via row embeddings
     do r = 1, layer%n_rows
-      row_proj(r) = dot_product(layer%row_keys(:, r), query_vec)
+      row_proj(r) = dot_product(layer%row_embed(:, r), q_rank)
     end do
 
-    ! Outer product scores
+    ! Step 4: Compute column scores via column embeddings
+    do c = 1, layer%n_cols
+      col_proj(c) = dot_product(layer%col_embed(:, c), c_rank)
+    end do
+
+    ! Step 5: Assemble score matrix via outer product
     do r = 1, layer%n_rows
       do c = 1, layer%n_cols
         scores(r, c) = row_proj(r) * col_proj(c)
@@ -238,7 +243,6 @@ contains
 
     total = n_rows * n_cols
 
-    ! Flatten
     do i = 1, n_rows
       do j = 1, n_cols
         flat((i-1)*n_cols + j) = scores(i, j)
