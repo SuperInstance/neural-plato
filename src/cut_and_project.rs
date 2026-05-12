@@ -128,7 +128,7 @@ impl CutAndProject {
     }
 
     /// Project a lattice point from embed_dim to tiling_dim.
-    fn project_to_tiling(&self, point: &[i64]) -> Vec<f64> {
+    pub fn project_to_tiling(&self, point: &[i64]) -> Vec<f64> {
         self.projection
             .iter()
             .map(|row| {
@@ -142,7 +142,7 @@ impl CutAndProject {
 
     /// Project a lattice point into the perpendicular space (the window space).
     /// This is the complement of the tiling projection.
-    fn project_to_perp(&self, point: &[i64]) -> Vec<f64> {
+    pub fn project_to_perp(&self, point: &[i64]) -> Vec<f64> {
         let perp_dim = self.embed_dim - self.tiling_dim;
         // The perpendicular projection is orthogonal to the tiling projection
         // For Penrose: rotate each basis vector by the "perp" angle
