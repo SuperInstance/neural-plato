@@ -1,0 +1,18 @@
+[package]
+name = "neural-plato"
+version = "0.1.0"
+edition = "2021"
+description = "Fortran + Rust hybrid implementing sparse memory, Tucker decomposition, Eisenstein snap, and forgetting curves"
+authors = ["Forgemaster ⚒️ <forgemaster@cocapn.fleet>"]
+
+[lib]
+name = "neural_plato"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+
+[build-dependencies]
+
+[features]
+default = []
+fortran = []
