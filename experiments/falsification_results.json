@@ -1,0 +1,107 @@
+{
+  "total": 20,
+  "passed": 17,
+  "failed": 3,
+  "results": [
+    {
+      "claim": "[C1] Fibonacci word thick:thin ratio converges to 1/\u03c6",
+      "passed": true,
+      "evidence": "Ratio = 0.618000, expected = 0.618034, delta = 0.000034 (threshold < 0.01)"
+    },
+    {
+      "claim": "[C2] Matching rules hold at >80% of positions",
+      "passed": true,
+      "evidence": "Rate = 0.9919 (9919/10000 positions)"
+    },
+    {
+      "claim": "[C3] Different lattice directions produce different bit patterns",
+      "passed": true,
+      "evidence": "east\u2260north: True, east\u2260diag: True, north\u2260diag: True, diag\u2260anti: True"
+    },
+    {
+      "claim": "[C4] Fibonacci word is deterministic (same input \u2192 same output)",
+      "passed": true,
+      "evidence": "1000 bits computed twice, identical = True"
+    },
+    {
+      "claim": "[C5] Region fingerprints are unique at radius 3 (for 400 positions)",
+      "passed": true,
+      "evidence": "400 positions tested, all unique = True"
+    },
+    {
+      "claim": "[C6] 3-coloring uses all 3 colors AND adjacent tiles differ",
+      "passed": true,
+      "evidence": "Colors used: {0, 1, 2}, adjacent different: True"
+    },
+    {
+      "claim": "[C7] Dead reckoning walk reaches stored memory position",
+      "passed": true,
+      "evidence": "Store at (3, 3), walked through [(1, 1), (1, 1), (2, 2), (2, 2), (3, 3)], hit = True"
+    },
+    {
+      "claim": "[C8] Consolidation (deflation) reduces tile count",
+      "passed": true,
+      "evidence": "Before: 3 tiles, After: 1 tiles"
+    },
+    {
+      "claim": "[C9] Nearby embeddings project to nearby tiles (locality)",
+      "passed": false,
+      "evidence": "Near perturbation \u2192 tile distance 0.00, Random \u2192 tile distance 0.00"
+    },
+    {
+      "claim": "[C10] High-D (1536) cut-and-project produces finite 2D coordinates",
+      "passed": true,
+      "evidence": "Projected: ['0.9735', '0.6144'], all finite = True"
+    },
+    {
+      "claim": "[C11] Golden ratio is irrational (best rational approximation with denom<1M has error > 0)",
+      "passed": false,
+      "evidence": "Best rational: 1346269/832040, error from \u03c6 = 6.46e-13"
+    },
+    {
+      "claim": "[C12] 2D projection captures only a fraction of 64D embedding energy",
+      "passed": true,
+      "evidence": "Full norm: 7.3621, Projected norm: 0.1872, Capture: 0.0254"
+    },
+    {
+      "claim": "[C13] Retrieval confidence decreases with distance from stored memory",
+      "passed": true,
+      "evidence": "Confidences: [('d=0.0', 'c=1.000'), ('d=1.0', 'c=0.500'), ('d=2.0', 'c=0.500'), ('d=5.0', 'c=0.250'), ('d=10.0', 'c=0.143'), ('d=20.0', 'c=0.077')]"
+    },
+    {
+      "claim": "[C14] Below 10% source coverage, information-theoretic reconstruction is impossible",
+      "passed": true,
+      "evidence": "10 bits available, 100 needed. Reconstruction impossible = True"
+    },
+    {
+      "claim": "[C15] Baton split=3 corresponds to Penrose 3-coloring (structural)",
+      "passed": true,
+      "evidence": "3-coloring verified in C6. Experimental evidence: 3 shards = 75% accuracy, 5 shards = fragmentation"
+    },
+    {
+      "claim": "[C16] Boltzmann entropy at T=1.0 is higher than T=0.1 (more information per token)",
+      "passed": true,
+      "evidence": "Entropy at T=0.1: 0.0018, T=1.0: 1.9315, max possible: 2.3026"
+    },
+    {
+      "claim": "[C17] Thick:thin ratio is translation-invariant (spread < 0.02)",
+      "passed": false,
+      "evidence": "Ratios at 5 offsets: 0.6200, 0.6170, 0.6190, 0.6060, 0.6280, spread = 0.0220"
+    },
+    {
+      "claim": "[C18] Golden twist never repeats exactly in 10000 iterations",
+      "passed": true,
+      "evidence": "10000 iterations, found repeat = False"
+    },
+    {
+      "claim": "[C19] 5D \u2192 2D cut-and-project produces distinct projected points",
+      "passed": true,
+      "evidence": "125 points, 125 unique"
+    },
+    {
+      "claim": "[C20] Golden projection preserves embedding proximity",
+      "passed": true,
+      "evidence": "Golden distance: 0.0314, Random distance: 0.1148"
+    }
+  ]
+}

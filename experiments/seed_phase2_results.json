@@ -1,0 +1,38 @@
+[
+  {
+    "question": "Q1",
+    "golden_wins": false,
+    "golden_mean": 0.09113225639044503,
+    "random_mean": 0.08908574021771495
+  },
+  {
+    "question": "Q2",
+    "perp_worse": false,
+    "aligned_rate": 1.0,
+    "perp_rate": 0.065
+  },
+  {
+    "question": "Q7",
+    "alignment_matters": true,
+    "best": [
+      2.0943951023931953,
+      0.07311506672442293
+    ],
+    "worst": [
+      0.5235987755982988,
+      0.0030047233406436304
+    ]
+  },
+  {
+    "question": "Q8",
+    "color_helps": false,
+    "spatial_rate": 0.89,
+    "color_rate": 0.89
+  },
+  {
+    "question": "Q10",
+    "localized": true,
+    "error_rate": 0.849,
+    "localization_rate": 1.0
+  }
+]
