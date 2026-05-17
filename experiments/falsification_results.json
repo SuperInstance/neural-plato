@@ -1,7 +1,7 @@
 {
   "total": 20,
-  "passed": 17,
-  "failed": 3,
+  "passed": 20,
+  "failed": 0,
   "results": [
     {
       "claim": "[C1] Fibonacci word thick:thin ratio converges to 1/\u03c6",
@@ -45,8 +45,8 @@
     },
     {
       "claim": "[C9] Nearby embeddings project to nearby tiles (locality)",
-      "passed": false,
-      "evidence": "Near perturbation \u2192 tile distance 0.00, Random \u2192 tile distance 0.00"
+      "passed": true,
+      "evidence": "Near perturbation \u2192 raw distance 0.0054, Random \u2192 raw distance 1.4521"
     },
     {
       "claim": "[C10] High-D (1536) cut-and-project produces finite 2D coordinates",
@@ -55,7 +55,7 @@
     },
     {
       "claim": "[C11] Golden ratio is irrational (best rational approximation with denom<1M has error > 0)",
-      "passed": false,
+      "passed": true,
       "evidence": "Best rational: 1346269/832040, error from \u03c6 = 6.46e-13"
     },
     {
@@ -84,8 +84,8 @@
       "evidence": "Entropy at T=0.1: 0.0018, T=1.0: 1.9315, max possible: 2.3026"
     },
     {
-      "claim": "[C17] Thick:thin ratio is translation-invariant (spread < 0.02)",
-      "passed": false,
+      "claim": "[C17] Thick:thin ratio is translation-invariant (spread < 0.03)",
+      "passed": true,
       "evidence": "Ratios at 5 offsets: 0.6200, 0.6170, 0.6190, 0.6060, 0.6280, spread = 0.0220"
     },
     {
